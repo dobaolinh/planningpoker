@@ -261,5 +261,5 @@ io.on('connection', socket => {
   socket.on('session:leave', () => leaveCurrent());
   socket.on('disconnect', () => leaveCurrent({ immediate: false }));
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Planning Poker server listening on http://localhost:${PORT}`));
