@@ -48,3 +48,9 @@ IDs must be unique within the session.
 ## Important limitations before public deployment
 This is a prototype for local testing. It does not have accounts or strong identity verification. A user who knows a room code can join under a chosen display name. The host key is stored in that browser's localStorage; clearing browser data can remove host access. Anyone with direct access to the server/data file can inspect stored votes.
 For internet deployment, add rate limits, stronger host recovery, session expiration/deletion, input validation hardening, and HTTPS. Run the server behind a host that supports WebSockets. Do not use this prototype for sensitive/private meetings without reviewing its security.
+
+
+Build Command : npm ci --include=dev && npm run build
+Start Command : npm start
+Health Check Path : /api/health
+Environment Variables: NODE_ENV = production
