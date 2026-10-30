@@ -88,6 +88,8 @@ function errorResponse(res, status, message) { return res.status(status).json({ 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+const DIST_DIR = path.resolve(__dirname, '../dist');
+app.use(express.static(DIST_DIR));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/sessions', (_req, res) => {
@@ -224,6 +226,15 @@ app.post('/api/sessions/:id/reaction', (req, res) => {
     targetId: target.id, targetName: target.name, emoji, at: Date.now()
   });
   res.json({ ok: true });
+});
+
+app.get('*', (req, res, next) => {
+  // Không trả index.html cho API route không tồn tại
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 
 const server = http.createServer(app);
