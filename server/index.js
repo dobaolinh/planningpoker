@@ -203,6 +203,16 @@ app.post('/api/sessions/:id/reveal', (req, res) => {
   story.point = suggestPoint(story.votes.map(v => v.value));
   persist(); emitSession(s); res.json(publicSession(s));
 });
+app.post('/api/sessions/:id/revote', (req, res) => {
+  const s = findSession(req.params.id.toUpperCase());
+  if (!s) return errorResponse(res, 404, 'Session not found.');
+  if (!isHost(s, req.body?.hostKey)) return errorResponse(res, 403, 'Only the host can start a re-vote.');
+  const story = s.stories[s.currentStoryIndex];
+  if (!story) return errorResponse(res, 400, 'No story is currently selected.');
+  // Xóa toàn bộ phiếu + điểm của story hiện tại để vote lại từ đầu.
+  story.votes = []; story.revealed = false; story.point = null;
+  persist(); emitSession(s); res.json(publicSession(s));
+});
 app.post('/api/sessions/:id/members/:memberId/remove', (req, res) => {
   const s = findSession(req.params.id.toUpperCase());
   if (!s) return errorResponse(res, 404, 'Session not found.');

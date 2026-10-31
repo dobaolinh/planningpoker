@@ -25,7 +25,7 @@ async function api(path, options = {}) {
 }
 
 // Bàn poker: member ngồi quanh bàn (bạn luôn ở dưới cùng), lá bài đặt trên mặt bàn trước chỗ ngồi.
-function PokerTable({ session, story, memberId, isHost, reactions, median, onReact, onRemove, onReveal }) {
+function PokerTable({ session, story, memberId, isHost, reactions, median, onReact, onRemove, onReveal, onRevote }) {
   const members = session.members;
   const n = members.length;
   const meIdx = Math.max(0, members.findIndex(m => m.id === memberId));
@@ -38,7 +38,7 @@ function PokerTable({ session, story, memberId, isHost, reactions, median, onRea
     <div className="table-felt">
       <div className="table-center">
         <span className="table-label">{story.revealed ? 'MEDIAN' : `${(story.votes || []).length} / ${n} VOTED`}</span>
-        {story.revealed ? <strong className="table-point">{median ?? '—'}</strong>
+        {story.revealed ? <><strong className="table-point">{median ?? '—'}</strong>{isHost && <button className="primary-button reveal-button" onClick={onRevote}>Re-vote ↻</button>}</>
           : isHost ? <button className="primary-button reveal-button" onClick={onReveal}>Reveal ✦</button>
           : <span className="table-wait">◌ Waiting for host</span>}
       </div>
@@ -163,6 +163,10 @@ function App() {
   async function reveal() {
     await doAction(`/api/sessions/${session.id}/reveal`, { hostKey });
   }
+  async function revote() {
+    setSelectedCard('');
+    await doAction(`/api/sessions/${session.id}/revote`, { hostKey });
+  }
   async function nextStory(index) {
     setSelectedCard('');
     await doAction(`/api/sessions/${session.id}/stories/${index}/next`, { hostKey });
@@ -261,11 +265,11 @@ function App() {
                 <div className="story-focus-content"><div><span className="story-id">{currentStory.id}</span><h2>{currentStory.name}</h2></div><div className="big-point">{currentStory.revealed && currentStory.point !== null ? currentStory.point : <span>?</span>}<small>STORY POINTS</small></div></div>
                 <div className="vote-progress"><div className="progress-track"><span style={{width: `${onlineCount ? Math.min(100, voteCount/onlineCount*100) : 0}%`}}></span></div><span>{voteCount} / {onlineCount} voted</span></div>
               </div>
-              {isTable && <PokerTable session={session} story={currentStory} memberId={memberId} isHost={isHost} reactions={reactions} median={median} onReact={sendReaction} onRemove={removeMember} onReveal={reveal} />}
+              {isTable && <PokerTable session={session} story={currentStory} memberId={memberId} isHost={isHost} reactions={reactions} median={median} onReact={sendReaction} onRemove={removeMember} onReveal={reveal} onRevote={revote} />}
               <div className="panel voting-panel">
                 <div className="section-heading"><div><h3>Choose your estimate</h3><p>Select a card that represents the effort and complexity.</p></div><span className="fib-tag">FIBONACCI DECK</span></div>
-                <div className="cards-grid">{CARDS.map(value=><button key={value} disabled={currentStory.revealed} onClick={() => vote(value)} className={`poker-card ${selectedCard===value || ownVote?.value===value?'selected':''} ${value==='?'?'unknown':''}`}><span>{value}</span><small>{value==='?'?'UNSURE':'POINTS'}</small></button>)}</div>
-                <div className="vote-footer"><span>{ownVote ? <>Your vote: <strong>{ownVote.value}</strong> · You can change it before reveal.</> : 'Your vote stays hidden until the host reveals.'}</span>{isHost ? <button className="primary-button reveal-button" disabled={currentStory.revealed} onClick={reveal}>Reveal cards <span>✦</span></button> : <span className="waiting-label">◌ Waiting for host to reveal</span>}</div>
+                <div className="cards-grid">{CARDS.map(value=><button key={value} disabled={currentStory.revealed} onClick={() => vote(value)} className={`poker-card ${ownVote?.value===value?'selected':''} ${value==='?'?'unknown':''}`}><span>{value}</span><small>{value==='?'?'UNSURE':'POINTS'}</small></button>)}</div>
+                <div className="vote-footer"><span>{currentStory.revealed ? 'Votes revealed.' : ownVote ? <>Your vote: <strong>{ownVote.value}</strong> · You can change it before reveal.</> : 'Your vote stays hidden until the host reveals.'}</span>{isHost ? (currentStory.revealed ? <button className="primary-button reveal-button" onClick={revote}>Re-vote <span>↻</span></button> : <button className="primary-button reveal-button" onClick={reveal}>Reveal cards <span>✦</span></button>) : <span className="waiting-label">◌ Waiting for host to reveal</span>}</div>
               </div>
               {currentStory.revealed && !isTable && <div className="panel results-panel"><div className="section-heading"><div><h3>Round results</h3><p>All submitted votes are now visible.</p></div><span className="result-median">Median <strong>{median ?? '—'}</strong></span></div>
                 <div className="results-grid">{session.members.map(m=>{const v=currentStory.votes.find(x=>x.memberId===m.id);return <div className="result-person" key={m.id}><span className="avatar avatar-1">{m.name.slice(0,1).toUpperCase()}</span><span className="result-name">{m.name}</span><strong className="result-vote">{v?.value ?? '—'}</strong></div>})}</div>
