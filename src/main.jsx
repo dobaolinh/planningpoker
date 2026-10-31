@@ -17,6 +17,47 @@ async function api(path, options = {}) {
   return data;
 }
 
+// Bàn poker: member ngồi quanh bàn (bạn luôn ở dưới cùng), lá bài đặt trên mặt bàn trước chỗ ngồi.
+function PokerTable({ session, story, memberId, isHost, reactions, median, onReact, onRemove, onReveal }) {
+  const members = session.members;
+  const n = members.length;
+  const meIdx = Math.max(0, members.findIndex(m => m.id === memberId));
+  const pos = (i, rx, ry) => {
+    const a = ((i - meIdx + n) % n) / n * 2 * Math.PI; // 0 = dưới cùng
+    return { left: `${50 + rx * Math.sin(a)}%`, top: `${50 + ry * Math.cos(a)}%` };
+  };
+  const compact = n > 8;
+  return <div className={`poker-table panel ${compact ? 'compact' : ''}`}>
+    <div className="table-felt">
+      <div className="table-center">
+        <span className="table-label">{story.revealed ? 'MEDIAN' : `${(story.votes || []).length} / ${n} VOTED`}</span>
+        {story.revealed ? <strong className="table-point">{median ?? '—'}</strong>
+          : isHost ? <button className="primary-button reveal-button" onClick={onReveal}>Reveal ✦</button>
+          : <span className="table-wait">◌ Waiting for host</span>}
+      </div>
+    </div>
+    {members.map((m, i) => {
+      const v = story.votes.find(x => x.memberId === m.id);
+      const voted = !!v;
+      return <React.Fragment key={m.id}>
+        <div className="table-card-slot" style={pos(i, 27, 25)}>
+          {voted ? <div className={`mini-card ${story.revealed ? 'face' : 'back'}`}>{story.revealed ? v.value : ''}</div> : <div className="mini-card empty"></div>}
+        </div>
+        <div className={`seat ${m.online ? '' : 'offline'}`} style={pos(i, 43, 43)}>
+          <span className={`avatar avatar-${i % 5}`}><i className={`presence-dot ${m.online ? 'on' : ''}`}></i>{m.name.slice(0, 1).toUpperCase()}</span>
+          <strong className="seat-name">{m.name}{m.id === memberId ? ' (you)' : ''}</strong>
+          {m.isHost && <span className="host-badge">HOST</span>}
+          <div className="reaction-menu">{EMOJIS.map(e => <button key={e} title={`Send ${e}`} onClick={() => onReact(m.id, e)}>{e}</button>)}
+            {isHost && !m.isHost && <button className="seat-remove" title="Remove member" onClick={() => onRemove(m.id)}>×</button>}</div>
+          <div className="member-reaction-overlay" aria-hidden="true">
+            {reactions.filter(r => r.targetId === m.id).map(r => <span key={r.id} className="member-impact-emoji">{r.emoji}</span>)}
+          </div>
+        </div>
+      </React.Fragment>;
+    })}
+  </div>;
+}
+
 function App() {
   const [page, setPage] = useState('home');
   const [sessions, setSessions] = useState([]);
@@ -24,6 +65,7 @@ function App() {
   const [hostKey, setHostKey] = useState('');
   const [memberId, setMemberId] = useState('');
   const [displayName, setDisplayName] = useState(localStorage.getItem('pokerName') || '');
+  const [layout, setLayout] = useState('grid');
   const [sessionName, setSessionName] = useState('Sprint Planning');
   const [storyText, setStoryText] = useState('US-101 | Login page\nUS-102 | Password reset\nUS-103 | User profile');
   const [sessionCode, setSessionCode] = useState('');
@@ -67,6 +109,7 @@ function App() {
   const onlineCount = onlineIds.size;
   const voteCount = (currentStory?.votes || []).filter(v => onlineIds.has(v.memberId)).length;
   // Online lên trước, offline xuống dưới (giữ thứ tự tham gia trong từng nhóm).
+  const isTable = session?.layout === 'table';
   const sortedMembers = [...(session?.members || [])].sort((a, b) => Number(b.online) - Number(a.online));
 
   async function createSession(e) {
@@ -77,7 +120,7 @@ function App() {
     });
     setBusy(true);
     try {
-      const data = await api('/api/sessions', { method: 'POST', body: JSON.stringify({ name: sessionName, hostName: displayName, stories: parsed }) });
+      const data = await api('/api/sessions', { method: 'POST', body: JSON.stringify({ name: sessionName, hostName: displayName, layout, stories: parsed }) });
       setSession(data.session); setHostKey(data.hostKey); setMemberId(data.hostMemberId);
       localStorage.setItem('pokerName', displayName); localStorage.setItem(`pokerHost:${data.session.id}`, data.hostKey);
       localStorage.setItem(`pokerMember:${data.session.id}`, data.hostMemberId);
@@ -157,6 +200,10 @@ function App() {
           <form onSubmit={createSession}>
             <label>Your display name</label><input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="e.g. Linh" required maxLength={40}/>
             <label>Session name</label><input value={sessionName} onChange={e => setSessionName(e.target.value)} placeholder="Sprint 12 Planning" required maxLength={80}/>
+            <label>Room layout <span className="label-hint">Fixed after creation</span></label>
+            <div className="layout-picker" role="radiogroup">
+              {[['grid','Grid','▦','Members listed in a panel'],['table','Poker table','◯','Members seated around a table']].map(([v,t,ic,d])=><button type="button" key={v} role="radio" aria-checked={layout===v} className={`layout-option ${layout===v?'active':''}`} onClick={()=>setLayout(v)}><span className="layout-ic">{ic}</span><span><strong>{t}</strong><small>{d}</small></span></button>)}
+            </div>
             <label>User stories <span className="label-hint">One per line: ID | Name</span></label>
             <textarea className="story-input" value={storyText} onChange={e => setStoryText(e.target.value)} rows={5} placeholder={'US-101 | Login page\nUS-102 | Password reset'} required/>
             <div className="field-help">e.g. <code>US-101 | Login page</code></div>
@@ -185,7 +232,7 @@ function App() {
           <div><button className="back-link" onClick={leaveRoom}>← All sessions</button><div className="room-title-row"><h1>{session.name}</h1><span className="room-code">{session.id}</span></div><p className="muted">Planning room · {session.stories.length} user stories</p></div>
           <div className="room-header-right"><div className="avatar-stack">{sortedMembers.slice(0,4).map((m,i)=><span key={m.id} className={`avatar avatar-${i%5}`} title={m.name}>{m.name.slice(0,1).toUpperCase()}</span>)}{sortedMembers.length>4&&<span className="avatar extra">+{session.members.length-4}</span>}</div><span className="member-count">{onlineCount} online</span></div>
         </div>
-        <div className="room-layout">
+        <div className={`room-layout ${isTable ? 'table-mode' : ''}`}>
           <aside className="sidebar panel">
             <div className="sidebar-title"><span>USER STORIES</span><span className="count-badge">{session.stories.length}</span></div>
             <div className="story-list">{session.stories.map((story,i)=><button key={story.id} onClick={() => isHost ? nextStory(i) : setError('Only the host can switch user stories.')} className={`story-row ${i===session.currentStoryIndex?'active':''} ${story.revealed?'done':''}`}>
@@ -207,18 +254,19 @@ function App() {
                 <div className="story-focus-content"><div><span className="story-id">{currentStory.id}</span><h2>{currentStory.name}</h2></div><div className="big-point">{currentStory.revealed && currentStory.point !== null ? currentStory.point : <span>?</span>}<small>STORY POINTS</small></div></div>
                 <div className="vote-progress"><div className="progress-track"><span style={{width: `${onlineCount ? Math.min(100, voteCount/onlineCount*100) : 0}%`}}></span></div><span>{voteCount} / {onlineCount} voted</span></div>
               </div>
+              {isTable && <PokerTable session={session} story={currentStory} memberId={memberId} isHost={isHost} reactions={reactions} median={median} onReact={sendReaction} onRemove={removeMember} onReveal={reveal} />}
               <div className="panel voting-panel">
                 <div className="section-heading"><div><h3>Choose your estimate</h3><p>Select a card that represents the effort and complexity.</p></div><span className="fib-tag">FIBONACCI DECK</span></div>
                 <div className="cards-grid">{CARDS.map(value=><button key={value} disabled={currentStory.revealed} onClick={() => vote(value)} className={`poker-card ${selectedCard===value || ownVote?.value===value?'selected':''} ${value==='?'?'unknown':''}`}><span>{value}</span><small>{value==='?'?'UNSURE':'POINTS'}</small></button>)}</div>
                 <div className="vote-footer"><span>{ownVote ? <>Your vote: <strong>{ownVote.value}</strong> · You can change it before reveal.</> : 'Your vote stays hidden until the host reveals.'}</span>{isHost ? <button className="primary-button reveal-button" disabled={currentStory.revealed} onClick={reveal}>Reveal cards <span>✦</span></button> : <span className="waiting-label">◌ Waiting for host to reveal</span>}</div>
               </div>
-              {currentStory.revealed && <div className="panel results-panel"><div className="section-heading"><div><h3>Round results</h3><p>All submitted votes are now visible.</p></div><span className="result-median">Median <strong>{median ?? '—'}</strong></span></div>
+              {currentStory.revealed && !isTable && <div className="panel results-panel"><div className="section-heading"><div><h3>Round results</h3><p>All submitted votes are now visible.</p></div><span className="result-median">Median <strong>{median ?? '—'}</strong></span></div>
                 <div className="results-grid">{session.members.map(m=>{const v=currentStory.votes.find(x=>x.memberId===m.id);return <div className="result-person" key={m.id}><span className="avatar avatar-1">{m.name.slice(0,1).toUpperCase()}</span><span className="result-name">{m.name}</span><strong className="result-vote">{v?.value ?? '—'}</strong></div>})}</div>
                 <div className="result-note">Suggested point is the median of numeric votes, snapped to the nearest Fibonacci card (ties round up). “?” votes are excluded.</div>
               </div>}
             </> : <div className="panel">This session has no user stories yet.</div>}
           </section>
-          <aside className="members-panel panel">
+          {!isTable && <aside className="members-panel panel">
             <div className="sidebar-title"><span>TEAM MEMBERS</span><span className="count-badge">{onlineCount}/{session.members.length}</span></div>
             <p className="members-hint">Hover a name to send a reaction 👀</p>
             <div className="members-list">{sortedMembers.map((m,i)=><div className={`member-row ${m.online?'':'offline'}`} key={m.id}>
@@ -234,7 +282,7 @@ function App() {
               {m.isHost?<span className="host-badge">HOST</span>:isHost?<button className="remove-member" title="Remove member" onClick={()=>removeMember(m.id)}>×</button>:null}
             </div>)}</div>
             <div className="member-footer"><span className="live-dot"></span> Live updates enabled</div>
-          </aside>
+          </aside>}
         </div>
       </>}
     </main>}

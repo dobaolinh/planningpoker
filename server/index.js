@@ -72,6 +72,7 @@ function removePresence(sessionId, memberId, socketId) {
 function publicSession(s) {
   return {
     id: s.id, name: s.name, createdAt: s.createdAt,
+    layout: s.layout === 'table' ? 'table' : 'grid', // session cũ chưa có layout => grid
     stories: s.stories.map(({ id, name, point, votes, revealed }) => ({
       id, name, point: revealed ? point : null, revealed: !!revealed,
       votes: revealed ? votes : votes.map(v => ({ memberId: v.memberId, value: null }))
@@ -101,6 +102,7 @@ app.get('/api/sessions', (_req, res) => {
 app.post('/api/sessions', (req, res) => {
   const name = cleanName(req.body?.name, 80);
   const hostName = cleanName(req.body?.hostName, 40);
+  const layout = req.body?.layout === 'table' ? 'table' : 'grid'; // chỉ host chọn lúc tạo, không có API đổi sau đó
   const storiesInput = Array.isArray(req.body?.stories) ? req.body.stories : [];
   if (!name) return errorResponse(res, 400, 'Please enter a session name.');
   if (!hostName) return errorResponse(res, 400, 'Please enter the host display name.');
@@ -118,7 +120,7 @@ app.post('/api/sessions', (req, res) => {
   const hostKey = randomBytes(24).toString('hex');
   const session = {
     id: randomUUID().slice(0, 8).toUpperCase(),
-    name, hostKey, createdAt: new Date().toISOString(),
+    name, layout, hostKey, createdAt: new Date().toISOString(),
     stories, members: [], currentStoryIndex: 0
   };
   session.members.push({ id: randomUUID(), name: hostName, joinedAt: new Date().toISOString(), isHost: true });
