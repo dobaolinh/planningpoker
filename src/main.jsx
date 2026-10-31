@@ -7,6 +7,13 @@ const socket = io({ autoConnect: true });
 const CARDS = ['0','1','2','3','5','8','13','21','34','55','89','?'];
 const EMOJIS = ['😂','👍','💩','❤️','🔥','👏'];
 
+// Biến thể animation cố định theo id reaction (không dùng :nth-child, vì khi emoji trước đó bị gỡ
+// thì vị trí con đổi => animation-name đổi => hiệu ứng bị chạy lại lần nữa).
+function impactVariant(id) {
+  let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return ['v0', 'v1', 'v2'][h % 3];
+}
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -50,7 +57,7 @@ function PokerTable({ session, story, memberId, isHost, reactions, median, onRea
           <div className="reaction-menu">{EMOJIS.map(e => <button key={e} title={`Send ${e}`} onClick={() => onReact(m.id, e)}>{e}</button>)}
             {isHost && !m.isHost && <button className="seat-remove" title="Remove member" onClick={() => onRemove(m.id)}>×</button>}</div>
           <div className="member-reaction-overlay" aria-hidden="true">
-            {reactions.filter(r => r.targetId === m.id).map(r => <span key={r.id} className="member-impact-emoji">{r.emoji}</span>)}
+            {reactions.filter(r => r.targetId === m.id).map(r => <span key={r.id} className={`member-impact-emoji ${impactVariant(r.id)}`}>{r.emoji}</span>)}
           </div>
         </div>
       </React.Fragment>;
@@ -89,7 +96,7 @@ function App() {
     socket.on('connect', join); // tự join lại khi mất mạng / server restart
     const update = s => { if (s.id === session.id) setSession(s); };
     const reaction = r => {
-      setReactions(old => [...old, r]);
+      setReactions(old => old.some(x => x.id === r.id) ? old : [...old, r]);
       setTimeout(() => setReactions(old => old.filter(x => x.id !== r.id)), 2400);
     };
     socket.on('session:update', update);
@@ -276,7 +283,7 @@ function App() {
                 <small>{m.isHost?'Session host':'Team member'}{m.online?'':' · offline'}</small>
                 <div className="reaction-menu">{EMOJIS.map(emoji=><button key={emoji} title={`Send ${emoji}`} onClick={()=>sendReaction(m.id,emoji)}>{emoji}</button>)}</div>
                 <div className="member-reaction-overlay" aria-hidden="true">
-                  {reactions.filter(r => r.targetId === m.id).map(r => <span key={r.id} className="member-impact-emoji">{r.emoji}</span>)}
+                  {reactions.filter(r => r.targetId === m.id).map(r => <span key={r.id} className={`member-impact-emoji ${impactVariant(r.id)}`}>{r.emoji}</span>)}
                 </div>
               </div>
               {m.isHost?<span className="host-badge">HOST</span>:isHost?<button className="remove-member" title="Remove member" onClick={()=>removeMember(m.id)}>×</button>:null}

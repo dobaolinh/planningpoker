@@ -5,8 +5,8 @@
 .member-name-label{position:relative;z-index:1;display:inline-block;transform-origin:center}
 .member-reaction-overlay{position:absolute;inset:-17px -24px -14px -16px;z-index:4;pointer-events:none;overflow:visible}
 .member-impact-emoji{position:absolute;left:50%;top:50%;font-size:31px;line-height:1;filter:drop-shadow(0 3px 4px #0009);animation:emoji-impact 1.45s cubic-bezier(.15,.78,.2,1) both;transform-origin:center}
-.member-impact-emoji:nth-child(2n){font-size:27px;animation-name:emoji-impact-alt}
-.member-impact-emoji:nth-child(3n){font-size:35px;animation-name:emoji-impact-big}
+.member-impact-emoji.v1{font-size:27px;animation-name:emoji-impact-alt}
+.member-impact-emoji.v2{font-size:35px;animation-name:emoji-impact-big}
 @keyframes emoji-impact{
   0%{opacity:0;transform:translate(-115px,-8px) scale(.25) rotate(-28deg)}
   28%{opacity:1;transform:translate(-10px,-7px) scale(1.25) rotate(9deg)}
