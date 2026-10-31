@@ -46,3 +46,5 @@
 .seat{display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2;width:88px}.seat .avatar{width:34px;height:34px;font-size:12px}.seat-name{font-size:11px;max-width:84px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.seat.offline .avatar,.seat.offline .seat-name{opacity:.45}.seat:hover{z-index:9}.seat .reaction-menu{top:auto;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:2px}.seat:hover .reaction-menu{display:flex}.seat.offline .reaction-menu{display:none!important}.seat .member-reaction-overlay{inset:0}.seat-remove{color:#ffb6c1}
 .poker-table.compact .seat{width:70px}.poker-table.compact .seat .avatar{width:28px;height:28px}.poker-table.compact .mini-card{width:26px;height:36px;font-size:12px}
 @media(max-width:760px){.poker-table{height:400px}.table-felt{inset:18% 14%}.seat{width:64px}.seat-name{font-size:10px;max-width:60px}.mini-card{width:24px;height:34px;font-size:12px}}
+
+.mini-card.own{box-shadow:0 0 0 2px #9d8cff,0 3px 8px #0006}

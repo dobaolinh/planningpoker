@@ -25,7 +25,7 @@ async function api(path, options = {}) {
 }
 
 // Bàn poker: member ngồi quanh bàn (bạn luôn ở dưới cùng), lá bài đặt trên mặt bàn trước chỗ ngồi.
-function PokerTable({ session, story, memberId, isHost, reactions, median, onReact, onRemove, onReveal, onRevote }) {
+function PokerTable({ session, story, memberId, isHost, reactions, median, mine, onReact, onRemove, onReveal, onRevote }) {
   const members = session.members;
   const n = members.length;
   const meIdx = Math.max(0, members.findIndex(m => m.id === memberId));
@@ -48,7 +48,7 @@ function PokerTable({ session, story, memberId, isHost, reactions, median, onRea
       const voted = !!v;
       return <React.Fragment key={m.id}>
         <div className="table-card-slot" style={pos(i, 27, 25)}>
-          {voted ? <div className={`mini-card ${story.revealed ? 'face' : 'back'}`}>{story.revealed ? v.value : ''}</div> : <div className="mini-card empty"></div>}
+          {voted ? (() => { const own = m.id === memberId && !story.revealed; const show = story.revealed || own; return <div className={`mini-card ${show ? 'face' : 'back'} ${own ? 'own' : ''}`}>{story.revealed ? v.value : own ? mine : ''}</div>; })() : <div className="mini-card empty"></div>}
         </div>
         <div className={`seat ${m.online ? '' : 'offline'}`} style={pos(i, 43, 43)}>
           <span className={`avatar avatar-${i % 5}`}><i className={`presence-dot ${m.online ? 'on' : ''}`}></i>{m.name.slice(0, 1).toUpperCase()}</span>
@@ -109,6 +109,16 @@ function App() {
 
   const currentStory = session?.stories?.[session.currentStoryIndex];
   const ownVote = currentStory?.votes?.find(v => v.memberId === memberId);
+  // Server giấu giá trị phiếu cho tới khi reveal (value = null) nên giá trị lá bài mình chọn
+  // được giữ ở client (và localStorage để F5 không mất), chỉ hiển thị trên màn hình của chính member.
+  const voteKey = session && currentStory ? `pokerVote:${session.id}:${memberId}:${currentStory.id}` : '';
+  const hasVoted = !!ownVote;
+  useEffect(() => {
+    if (!voteKey) return;
+    if (!hasVoted) { setSelectedCard(''); try { localStorage.removeItem(voteKey); } catch {} return; } // chưa vote / bị re-vote
+    try { const saved = localStorage.getItem(voteKey); if (saved) setSelectedCard(saved); } catch {}
+  }, [voteKey, hasVoted]);
+  const mine = hasVoted ? (ownVote.value ?? selectedCard) : '';
   const isHost = !!hostKey;
   // Điểm gợi ý do server tính (đã snap về dãy Fibonacci), không tự tính lại ở client.
   const median = currentStory?.revealed ? currentStory.point : null;
@@ -158,6 +168,7 @@ function App() {
   }
   async function vote(value) {
     setSelectedCard(value);
+    try { localStorage.setItem(voteKey, value); } catch {}
     await doAction(`/api/sessions/${session.id}/vote`, { memberId, value });
   }
   async function reveal() {
@@ -265,11 +276,11 @@ function App() {
                 <div className="story-focus-content"><div><span className="story-id">{currentStory.id}</span><h2>{currentStory.name}</h2></div><div className="big-point">{currentStory.revealed && currentStory.point !== null ? currentStory.point : <span>?</span>}<small>STORY POINTS</small></div></div>
                 <div className="vote-progress"><div className="progress-track"><span style={{width: `${onlineCount ? Math.min(100, voteCount/onlineCount*100) : 0}%`}}></span></div><span>{voteCount} / {onlineCount} voted</span></div>
               </div>
-              {isTable && <PokerTable session={session} story={currentStory} memberId={memberId} isHost={isHost} reactions={reactions} median={median} onReact={sendReaction} onRemove={removeMember} onReveal={reveal} onRevote={revote} />}
+              {isTable && <PokerTable session={session} story={currentStory} memberId={memberId} isHost={isHost} reactions={reactions} median={median} mine={mine} onReact={sendReaction} onRemove={removeMember} onReveal={reveal} onRevote={revote} />}
               <div className="panel voting-panel">
                 <div className="section-heading"><div><h3>Choose your estimate</h3><p>Select a card that represents the effort and complexity.</p></div><span className="fib-tag">FIBONACCI DECK</span></div>
-                <div className="cards-grid">{CARDS.map(value=><button key={value} disabled={currentStory.revealed} onClick={() => vote(value)} className={`poker-card ${ownVote?.value===value?'selected':''} ${value==='?'?'unknown':''}`}><span>{value}</span><small>{value==='?'?'UNSURE':'POINTS'}</small></button>)}</div>
-                <div className="vote-footer"><span>{currentStory.revealed ? 'Votes revealed.' : ownVote ? <>Your vote: <strong>{ownVote.value}</strong> · You can change it before reveal.</> : 'Your vote stays hidden until the host reveals.'}</span>{isHost ? (currentStory.revealed ? <button className="primary-button reveal-button" onClick={revote}>Re-vote <span>↻</span></button> : <button className="primary-button reveal-button" onClick={reveal}>Reveal cards <span>✦</span></button>) : <span className="waiting-label">◌ Waiting for host to reveal</span>}</div>
+                <div className="cards-grid">{CARDS.map(value=><button key={value} disabled={currentStory.revealed} onClick={() => vote(value)} className={`poker-card ${ownVote && mine===value?'selected':''} ${value==='?'?'unknown':''}`}><span>{value}</span><small>{value==='?'?'UNSURE':'POINTS'}</small></button>)}</div>
+                <div className="vote-footer"><span>{currentStory.revealed ? 'Votes revealed.' : ownVote ? <>Your vote: <strong>{mine}</strong> · You can change it before reveal.</> : 'Your vote stays hidden until the host reveals.'}</span>{isHost ? (currentStory.revealed ? <button className="primary-button reveal-button" onClick={revote}>Re-vote <span>↻</span></button> : <button className="primary-button reveal-button" onClick={reveal}>Reveal cards <span>✦</span></button>) : <span className="waiting-label">◌ Waiting for host to reveal</span>}</div>
               </div>
               {currentStory.revealed && !isTable && <div className="panel results-panel"><div className="section-heading"><div><h3>Round results</h3><p>All submitted votes are now visible.</p></div><span className="result-median">Median <strong>{median ?? '—'}</strong></span></div>
                 <div className="results-grid">{session.members.map(m=>{const v=currentStory.votes.find(x=>x.memberId===m.id);return <div className="result-person" key={m.id}><span className="avatar avatar-1">{m.name.slice(0,1).toUpperCase()}</span><span className="result-name">{m.name}</span><strong className="result-vote">{v?.value ?? '—'}</strong></div>})}</div>
