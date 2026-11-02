@@ -14,6 +14,53 @@ function impactVariant(id) {
   return ['v0', 'v1', 'v2'][h % 3];
 }
 
+// Thả một trận mưa emoji từ phía trên màn hình xuống avatar của member.
+function rainEmojiToMember({ id, targetId, emoji }) {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const target = document.querySelector(`[data-member-id="${CSS.escape(String(targetId))}"]`);
+  if (!target) return;
+
+  const avatar = target.querySelector('.avatar') || target;
+  const rect = avatar.getBoundingClientRect();
+  const targetX = rect.left + rect.width / 2;
+  const targetY = rect.top + Math.min(8, rect.height * 0.2);
+  const particleCount = 11;
+  const layer = document.createElement('div');
+  layer.className = 'emoji-rain-layer';
+  layer.dataset.reactionId = String(id);
+  document.body.appendChild(layer);
+
+  let finished = 0;
+  for (let i = 0; i < particleCount; i += 1) {
+    const particle = document.createElement('span');
+    particle.className = 'emoji-rain-particle';
+    particle.textContent = emoji;
+    layer.appendChild(particle);
+
+    const startX = targetX + (Math.random() - 0.5) * Math.min(360, window.innerWidth * 0.42);
+    const startY = -70 - Math.random() * 180;
+    const endX = targetX - startX + (Math.random() - 0.5) * 28;
+    const endY = targetY - startY;
+    const rotation = (Math.random() - 0.5) * 540;
+    const scale = 0.72 + Math.random() * 0.55;
+    const duration = 820 + Math.random() * 520;
+    const delay = i * 42 + Math.random() * 120;
+
+    particle.style.left = `${startX}px`;
+    particle.style.top = `${startY}px`;
+    particle.style.fontSize = `${24 + Math.random() * 18}px`;
+    const animation = particle.animate([
+      { opacity: 0, transform: `translate3d(0,0,0) rotate(0deg) scale(${scale * 0.65})` },
+      { opacity: 1, offset: 0.12 },
+      { opacity: 1, transform: `translate3d(${endX * 0.72}px,${endY * 0.72}px,0) rotate(${rotation * 0.65}deg) scale(${scale})`, offset: 0.72 },
+      { opacity: 1, transform: `translate3d(${endX}px,${endY}px,0) rotate(${rotation}deg) scale(${scale * 1.18})`, offset: 0.9 },
+      { opacity: 0, transform: `translate3d(${endX}px,${endY + 14}px,0) rotate(${rotation + 18}deg) scale(${scale * 0.42})` }
+    ], { duration, delay, easing: 'cubic-bezier(.18,.72,.3,1)', fill: 'both' });
+    animation.onfinish = () => { finished += 1; if (finished === particleCount) layer.remove(); };
+  }
+  setTimeout(() => layer.remove(), 2600);
+}
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -50,7 +97,7 @@ function PokerTable({ session, story, memberId, isHost, reactions, median, mine,
         <div className="table-card-slot" style={pos(i, 27, 25)}>
           {voted ? (() => { const own = m.id === memberId && !story.revealed; const show = story.revealed || own; return <div className={`mini-card ${show ? 'face' : 'back'} ${own ? 'own' : ''}`}>{story.revealed ? v.value : own ? mine : ''}</div>; })() : <div className="mini-card empty"></div>}
         </div>
-        <div className={`seat ${m.online ? '' : 'offline'}`} style={pos(i, 43, 43)}>
+        <div className={`seat ${m.online ? '' : 'offline'}`} data-member-id={m.id} style={pos(i, 43, 43)}>
           <span className={`avatar avatar-${i % 5}`}><i className={`presence-dot ${m.online ? 'on' : ''}`}></i>{m.name.slice(0, 1).toUpperCase()}</span>
           <strong className="seat-name">{m.name}{m.id === memberId ? ' (you)' : ''}</strong>
           {m.isHost && <span className="host-badge">HOST</span>}
@@ -96,6 +143,7 @@ function App() {
     socket.on('connect', join); // tự join lại khi mất mạng / server restart
     const update = s => { if (s.id === session.id) setSession(s); };
     const reaction = r => {
+      requestAnimationFrame(() => rainEmojiToMember(r));
       setReactions(old => old.some(x => x.id === r.id) ? old : [...old, r]);
       setTimeout(() => setReactions(old => old.filter(x => x.id !== r.id)), 2400);
     };
@@ -291,7 +339,7 @@ function App() {
           {!isTable && <aside className="members-panel panel">
             <div className="sidebar-title"><span>TEAM MEMBERS</span><span className="count-badge">{onlineCount}/{session.members.length}</span></div>
             <p className="members-hint">Hover a name to send a reaction 👀</p>
-            <div className="members-list">{sortedMembers.map((m,i)=><div className={`member-row ${m.online?'':'offline'}`} key={m.id}>
+            <div className="members-list">{sortedMembers.map((m,i)=><div className={`member-row ${m.online?'':'offline'}`} data-member-id={m.id} key={m.id}>
               <span className={`avatar avatar-${i%5}`}><i className={`presence-dot ${m.online?'on':''}`}></i>{m.name.slice(0,1).toUpperCase()}</span>
               <div className="member-name-wrap" id={`member-${m.id}`}>
                 <strong className="member-name-label">{m.name}{m.id===memberId?' (you)':''}</strong>
