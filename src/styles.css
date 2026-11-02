@@ -48,3 +48,8 @@
 @media(max-width:760px){.poker-table{height:400px}.table-felt{inset:18% 14%}.seat{width:64px}.seat-name{font-size:10px;max-width:60px}.mini-card{width:24px;height:34px;font-size:12px}}
 
 .mini-card.own{box-shadow:0 0 0 2px #9d8cff,0 3px 8px #0006}
+
+/* Emoji rain overlay */
+.emoji-rain-layer{position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden;contain:layout style paint}
+.emoji-rain-particle{position:fixed;display:block;left:0;top:0;line-height:1;user-select:none;pointer-events:none;filter:drop-shadow(0 5px 7px #0009);will-change:transform,opacity;transform-origin:center}
+@media(prefers-reduced-motion:reduce){.emoji-rain-layer{display:none}}
